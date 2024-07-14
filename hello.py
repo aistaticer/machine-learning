@@ -55,53 +55,51 @@ def flask_app():
 def predict():
     app.logger.info("実行だ!")
 
-    logging.basicConfig(level=logging.INFO)
-    app_logger = logging.getLogger(__name__)
+    users = [
+        [1, [1, 2, 4]],
+        [2, [1, 3, 5]],
+        [3, [1, 2, 5]],
+        [4, [1, 2, 3]]
+    ]
 
-    # ユーザーIDとレシピIDをDataFrameに変換
-    df = pd.DataFrame(data, columns=['user_id', 'recipe_ids'])
+    recipes = {
+        1: ["中華", "鶏肉"],
+        2: ["中華", "豚肉"],
+        3: ["洋食", "牛肉"],
+        4: ["和食", "魚"],
+        5: ["洋食", "鶏肉"]
+    }
 
-    # レシピIDとジャンルをDataFrameに変換
-    junre_df = pd.DataFrame(junre, columns=['recipe_id', 'genre'])
+    recipe_features = pd.DataFrame.from_dict(recipes, orient='index', columns=['Cuisine', 'Main_Ingredient'])
+    app.logger.info(recipe_features)
 
-    # マルチラベルバイナライザーを使用して、ユーザーの好みをジャンルで表現
-    mlb = MultiLabelBinarizer(classes=junre_df['recipe_id'])
-    X = mlb.fit_transform(df['recipe_ids'])
+    # 初期化
+    user_profiles = []
 
-    # ターゲットとして、ユーザーが選んだ全ジャンルのラベルを使う
-    y = mlb.transform(df['recipe_ids'])
-
-    # 訓練データとテストデータに分割
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    # ランダムフォレスト分類器を使用
-    model = RandomForestClassifier(random_state=42)
-    model.fit(X_train, y_train)
-
-    # テストデータに対して予測
-    predictions = model.predict(X_test)
-    app_logger.info("テスト")
-    app_logger.info(predictions)
-
-    # テストデータの予測結果をログに出力
-    for i, (true, pred) in enumerate(zip(y_test, predictions)):
-        app_logger.info(f"True genres: {mlb.inverse_transform(np.array([true]))}, Predicted genres: {mlb.inverse_transform(np.array([pred]))}")
-
-    # 新しい仮のデータセットを作成
-    X_new = np.random.rand(10, 5)  # 10サンプル、5特徴量
-
-    # 予測を行う
-    predictions = model.predict(X_new)
-
-    # 予測結果を出力
-    #app.logger.info("Predictions: %s", predictions)
+    # ユーザーごとに特徴量を集計
+    for user_id, liked_recipes in users:
+        user_data = recipe_features.loc[liked_recipes]
+        user_profile = user_data['Cuisine'].value_counts().to_dict()
+        user_profile.update(user_data['Main_Ingredient'].value_counts().to_dict())
+        user_profiles.append((user_id, user_profile))
     
-    return "predict実行だ!"
-    #data = request.get_json(force=True)
-    #prediction = model.predict(np.array(data['features']).reshape(1, -1))
-    #print(prediction)
-    #print(jsonify({'prediction': int(prediction[0])}))
-    #return jsonify({'prediction': int(prediction[0])})
+    app.logger.info(user_profiles)
+
+    user_ids = [user_id for user_id, profile in user_profiles]
+    profiles = [profile for user_id, profile in user_profiles]
+
+    df = pd.DataFrame(profiles)
+    df['user_id'] = user_ids
+    df.set_index('user_id', inplace=True)
+
+    app.logger.info(df)
+
+    # 結果の表示
+    for user_id, profile in user_profiles:
+        print(f"User {user_id} Profile: {profile}")
+    
+    return user_profiles
+    #return "predict実行だよ!"
 
 if __name__ == '__main__':
     app.run(debug=True,host='0.0.0.0', port=4000)
